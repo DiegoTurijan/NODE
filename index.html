@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SimpleMind Pro</title>
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --node-bg: #2c2c2e;
+            --node-text: #ffffff;
+            --node-border: #3a3a3c;
+            --node-shadow: rgba(0, 0, 0, 0.3);
+            --connector-color: #48484a;
+            --selected-color: #0a84ff;
+            --highlight-color: #30d158;
+            --toolbar-bg: #2c2c2e;
+            --toolbar-btn: #3a3a3c;
+            --toolbar-btn-active: #0a84ff;
+            --text-primary: #ffffff;
+            --text-secondary: #aeaeb2;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+        
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            overflow: hidden;
+            touch-action: manipulation;
+            height: 100vh;
+        }
+        
+        #app {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        #canvas-container {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            touch-action: none;
+        }
+        
+        #canvas {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            cursor: grab;
+            transform-origin: 0 0;
+            will-change: transform;
+        }
+        
+        .node {
+            position: absolute;
+            min-width: 160px;
+            min-height: 60px;
+            background-color: var(--node-bg);
+            border-radius: 12px;
+            box-shadow: 0 4px 16px var(--node-shadow);
+            padding: 16px;
+            font-size: 18px;
+            cursor: pointer;
+            border: 2px solid var(--node-border);
+            transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+            word-break: break-word;
+            user-select: none;
+            touch-action: none;
+            color: var(--node-text);
+        }
+        
+        .node.selected {
+            border-color: var(--selected-color);
+            box-shadow: 0 6px 20px rgba(10, 132, 255, 0.2);
+        }
+        
+        .node.dragging {
+            opacity: 0.8;
+            z-index: 1000;
+            transition: none;
+        }
+        
+        .node.highlight {
+            border-color: var(--highlight-color);
+            background-color: rgba(48, 209, 88, 0.1);
+        }
+        
+        .node-input {
+            width: 100%;
+            height: 100%;
+            border: none;
+            outline: none;
+            font-size: 18px;
+            background: transparent;
+            resize: none;
+            overflow: hidden;
+            font-family: inherit;
+            pointer-events: none;
+            color: var(--node-text);
+        }
+        
+        .node-input.editing {
+            pointer-events: auto;
+            user-select: auto;
+        }
+        
+        .node-input::placeholder {
+            color: var(--text-secondary);
+            opacity: 0.7;
+        }
+        
+        #toolbar {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            background-color: var(--toolbar-bg);
+            border-radius: 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            padding: 12px;
+            z-index: 100;
+            gap: 10px;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .tool-btn {
+            width: 54px;
+            height: 54px;
+            border-radius: 50%;
+            background-color: var(--toolbar-btn);
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+            touch-action: manipulation;
+        }
+        
+        .tool-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .tool-btn.primary {
+            background-color: var(--selected-color);
+        }
+        
+        .tool-btn.toggle {
+            background-color: var(--toolbar-btn);
+        }
+        
+        .tool-btn.toggle.active {
+            background-color: var(--selected-color);
+        }
+        
+        .connector {
+            position: absolute;
+            pointer-events: none;
+            stroke: var(--connector-color);
+            stroke-width: 3;
+            fill: none;
+        }
+        
+        #zoom-controls {
+            position: fixed;
+            right: 20px;
+            bottom: 120px;
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+            gap: 10px;
+        }
+        
+        .zoom-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background-color: var(--toolbar-bg);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            color: var(--text-primary);
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            touch-action: manipulation;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        
+        #title-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 64px;
+            background-color: rgba(44, 44, 46, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        #title {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        #menu-btn {
+            position: absolute;
+            left: 20px;
+            font-size: 28px;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+        }
+        
+        .color-palette {
+            display: none;
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--toolbar-bg);
+            border-radius: 20px;
+            padding: 14px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            z-index: 101;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .color-option {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: inline-block;
+            margin: 8px;
+            border: 2px solid transparent;
+            transition: transform 0.2s;
+        }
+        
+        .color-option:hover {
+            transform: scale(1.1);
+        }
+        
+        .color-option.selected {
+            border-color: var(--text-primary);
+            transform: scale(1.1);
+        }
+
+        @media (max-width: 768px) {
+            .node {
+                min-width: 140px;
+                min-height: 50px;
+                font-size: 16px;
+                padding: 12px;
+            }
+
+            .node-input {
+                font-size: 16px;
+            }
+
+            .tool-btn {
+                width: 48px;
+                height: 48px;
+                font-size: 22px;
+            }
+
+            #toolbar {
+                bottom: 20px;
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div id="title-bar">
+            <button id="menu-btn">≡</button>
+            <div id="title">SimpleMind Pro</div>
+        </div>
+        <div id="canvas-container">
+            <div id="canvas"></div>
+        </div>
+        
+        <div id="zoom-controls">
+            <button class="zoom-btn" id="zoom-in">+</button>
+            <button class="zoom-btn" id="zoom-out">-</button>
+            <button class="zoom-btn" id="zoom-reset">↻</button>
+        </div>
+        
+        <div id="toolbar">
+            <button class="tool-btn" id="add-child">+</button>
+            <button class="tool-btn" id="delete-btn">🗑</button>
+            <button class="tool-btn" id="color-btn">🎨</button>
+            <button class="tool-btn toggle" id="auto-arrange">⇆</button>
+            <button class="tool-btn primary" id="center-btn">◎</button>
+        </div>
+        
+        <div class="color-palette" id="color-palette">
+            <div class="color-option" style="background-color: #0a84ff;" data-color="#0a84ff"></div>
+            <div class="color-option" style="background-color: #30d158;" data-color="#30d158"></div>
+            <div class="color-option" style="background-color: #ff453a;" data-color="#ff453a"></div>
+            <div class="color-option" style="background-color: #ffd60a;" data-color="#ffd60a"></div>
+            <div class="color-option" style="background-color: #bf5af2;" data-color="#bf5af2"></div>
+            <div class="color-option" style="background-color: #64d2ff;" data-color="#64d2ff"></div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // App state
+            const state = {
+                nodes: [],
+                connections: [],
+                selectedNode: null,
+                nextId: 1,
+                scale: 1,
+                minScale: 0.2,
+                maxScale: 3,
+                offsetX: 0,
+                offsetY: 0,
+                isDragging: false,
+                isPanning: false,
+                dragNode: null,
+                dragStartPos: { x: 0, y: 0 },
+                touchStart: { x: 0, y: 0 },
+                lastClickTime: 0,
+                potentialParent: null,
+                initialPinchDistance: null,
+                initialScale: 1,
+                autoArrange: false,
+                horizontalLayout: window.innerWidth > 768 // Desktop by default
+            };
+            
+            // DOM elements
+            const canvasContainer = document.getElementById('canvas-container');
+            const canvas = document.getElementById('canvas');
+            const addChildBtn = document.getElementById('add-child');
+            const deleteBtn = document.getElementById('delete-btn');
+            const colorBtn = document.getElementById('color-btn');
+            const autoArrangeBtn = document.getElementById('auto-arrange');
+            const centerBtn = document.getElementById('center-btn');
+            const zoomInBtn = document.getElementById('zoom-in');
+            const zoomOutBtn = document.getElementById('zoom-out');
+            const zoomResetBtn = document.getElementById('zoom-reset');
+            const colorPalette = document.getElementById('color-palette');
+            
+            // Check device type and set initial layout
+            function checkDeviceType() {
+                state.horizontalLayout = window.innerWidth > 768;
+                if (state.autoArrange) arrangeNodes();
+            }
+            
+            window.addEventListener('resize', checkDeviceType);
+            
+            // Initialize with a central node
+            createNode('Idea Central', window.innerWidth / 2 - 80, window.innerHeight / 2 - 30);
+            selectNode(state.nodes[0]);
+            
+            // Event listeners
+            addChildBtn.addEventListener('click', addChildNode);
+            deleteBtn.addEventListener('click', deleteSelectedNode);
+            colorBtn.addEventListener('click', toggleColorPalette);
+            autoArrangeBtn.addEventListener('click', toggleAutoArrange);
+            centerBtn.addEventListener('click', centerView);
+            zoomInBtn.addEventListener('click', () => zoom(1.2));
+            zoomOutBtn.addEventListener('click', () => zoom(0.8));
+            zoomResetBtn.addEventListener('click', resetZoom);
+            
+            // Setup touch/pointer events for canvas
+            setupCanvasEvents();
+            
+            // Color palette events
+            document.querySelectorAll('.color-option').forEach(option => {
+                option.addEventListener('click', function() {
+                    if (state.selectedNode) {
+                        const color = this.getAttribute('data-color');
+                        state.selectedNode.element.style.backgroundColor = color;
+                        colorPalette.style.display = 'none';
+                    }
+                });
+            });
+            
+            // Functions
+            function createNode(text, x, y, parentId = null) {
+                const nodeId = state.nextId++;
+                const nodeElement = document.createElement('div');
+                nodeElement.className = 'node';
+                nodeElement.innerHTML = `<textarea class="node-input" placeholder="Escribe aquí">${text}</textarea>`;
+                nodeElement.style.left = `${x}px`;
+                nodeElement.style.top = `${y}px`;
+                nodeElement.dataset.id = nodeId;
+                
+                canvas.appendChild(nodeElement);
+                
+                const textarea = nodeElement.querySelector('.node-input');
+                adjustTextareaHeight(textarea);
+                
+                const node = {
+                    id: nodeId,
+                    element: nodeElement,
+                    x,
+                    y,
+                    width: 160,
+                    height: textarea.scrollHeight + 32,
+                    parentId,
+                    text,
+                    originalParentId: parentId,
+                    children: [],
+                    depth: parentId ? (state.nodes.find(n => n.id === parentId)?.depth || 0) + 1 : 0
+                };
+                
+                state.nodes.push(node);
+                
+                // Add event listeners to node
+                nodeElement.addEventListener('mousedown', handleNodeMouseDown);
+                nodeElement.addEventListener('touchstart', handleNodeTouchStart, { passive: false });
+                
+                // Auto-resize textarea
+                textarea.addEventListener('input', function() {
+                    adjustTextareaHeight(this);
+                    node.height = this.scrollHeight + 32;
+                    node.text = this.value;
+                    updateConnections();
+                    if (state.autoArrange) arrangeNodes();
+                });
+                
+                textarea.addEventListener('blur', function() {
+                    this.classList.remove('editing');
+                    if (this.value.trim() === '') {
+                        this.value = 'Nuevo nodo';
+                        node.text = 'Nuevo nodo';
+                        adjustTextareaHeight(this);
+                    }
+                });
+                
+                // If this node has a parent, create a connection
+                if (parentId) {
+                    createConnection(parentId, nodeId);
+                    const parentNode = state.nodes.find(n => n.id === parentId);
+                    if (parentNode) parentNode.children.push(node);
+                }
+                
+                if (state.autoArrange) arrangeNodes();
+                
+                return node;
+            }
+            
+            function adjustTextareaHeight(textarea) {
+                textarea.style.height = 'auto';
+                const newHeight = Math.max(textarea.scrollHeight, 60);
+                textarea.style.height = newHeight + 'px';
+                return newHeight;
+            }
+            
+            function createConnection(fromId, toId) {
+                // Remove any existing connection to this node
+                state.connections = state.connections.filter(conn => conn.toId !== toId);
+                
+                const connection = { fromId, toId };
+                state.connections.push(connection);
+                updateConnections();
+                return connection;
+            }
+            
+            function updateConnections() {
+                // Remove old connections
+                document.querySelectorAll('.connector').forEach(el => el.remove());
+                
+                // Create new connections
+                state.connections.forEach(conn => {
+                    const fromNode = state.nodes.find(n => n.id === conn.fromId);
+                    const toNode = state.nodes.find(n => n.id === conn.toId);
+                    
+                    if (fromNode && toNode) {
+                        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                        svg.classList.add('connector');
+                        svg.style.width = '100%';
+                        svg.style.height = '100%';
+                        svg.style.position = 'absolute';
+                        svg.style.top = '0';
+                        svg.style.left = '0';
+                        svg.style.pointerEvents = 'none';
+                        svg.style.overflow = 'visible';
+                        
+                        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                        
+                        if (state.horizontalLayout) {
+                            // Horizontal connections
+                            const fromX = fromNode.x + fromNode.width;
+                            const fromY = fromNode.y + fromNode.height/2;
+                            const toX = toNode.x;
+                            const toY = toNode.y + toNode.height/2;
+                            
+                            // Create a curved path for horizontal layout
+                            const controlX = fromX + (toX - fromX) * 0.5;
+                            path.setAttribute('d', `M${fromX},${fromY} C${controlX},${fromY} ${controlX},${toY} ${toX},${toY}`);
+                        } else {
+                            // Vertical connections
+                            const fromX = fromNode.x + fromNode.width/2;
+                            const fromY = fromNode.y + fromNode.height;
+                            const toX = toNode.x + toNode.width/2;
+                            const toY = toNode.y;
+                            
+                            // Create a curved path for vertical layout
+                            const controlY = fromY + (toY - fromY) * 0.5;
+                            path.setAttribute('d', `M${fromX},${fromY} C${fromX},${controlY} ${toX},${controlY} ${toX},${toY}`);
+                        }
+                        
+                        path.setAttribute('stroke', 'var(--connector-color)');
+                        path.setAttribute('stroke-width', '3');
+                        path.setAttribute('fill', 'none');
+                        
+                        svg.appendChild(path);
+                        canvas.appendChild(svg);
+                    }
+                });
+            }
+            
+            function selectNode(node) {
+                // Deselect current node
+                if (state.selectedNode) {
+                    state.selectedNode.element.classList.remove('selected');
+                    const textarea = state.selectedNode.element.querySelector('.node-input');
+                    textarea.classList.remove('editing');
+                }
+                
+                // Select new node
+                state.selectedNode = node;
+                node.element.classList.add('selected');
+                
+                // Hide color palette if visible
+                colorPalette.style.display = 'none';
+            }
+            
+            function editNode(node) {
+                selectNode(node);
+                const textarea = node.element.querySelector('.node-input');
+                textarea.classList.add('editing');
+                textarea.focus();
+                // Select all text for easy replacement
+                textarea.setSelectionRange(0, textarea.value.length);
+            }
+            
+            function addChildNode() {
+                if (state.selectedNode) {
+                    const parent = state.selectedNode;
+                    let x, y;
+                    
+                    if (state.horizontalLayout) {
+                        x = parent.x + parent.width + 60;
+                        y = parent.y;
+                    } else {
+                        x = parent.x;
+                        y = parent.y + parent.height + 60;
+                    }
+                    
+                    const newNode = createNode('', x, y, parent.id);
+                    
+                    // Edit the new node immediately
+                    setTimeout(() => editNode(newNode), 50);
+                    
+                    if (state.autoArrange) arrangeNodes();
+                }
+            }
+            
+            function deleteSelectedNode() {
+                if (state.selectedNode) {
+                    const node = state.selectedNode;
+                    
+                    // Remove all connections to/from this node
+                    state.connections = state.connections.filter(conn => 
+                        conn.fromId !== node.id && conn.toId !== node.id
+                    );
+                    
+                    // Remove from parent's children array
+                    if (node.parentId) {
+                        const parent = state.nodes.find(n => n.id === node.parentId);
+                        if (parent) {
+                            parent.children = parent.children.filter(child => child.id !== node.id);
+                        }
+                    }
+                    
+                    // Remove any child connections (recursively)
+                    const childNodes = state.nodes.filter(n => n.parentId === node.id);
+                    childNodes.forEach(child => {
+                        state.connections = state.connections.filter(conn => 
+                            conn.fromId !== child.id && conn.toId !== child.id
+                        );
+                    });
+                    
+                    // Remove node from DOM and state
+                    node.element.remove();
+                    state.nodes = state.nodes.filter(n => n.id !== node.id);
+                    
+                    // Also remove any child nodes
+                    state.nodes = state.nodes.filter(n => n.parentId !== node.id);
+                    
+                    state.selectedNode = null;
+                    updateConnections();
+                    
+                    if (state.autoArrange) arrangeNodes();
+                }
+            }
+            
+            function toggleAutoArrange() {
+                state.autoArrange = !state.autoArrange;
+                autoArrangeBtn.classList.toggle('active', state.autoArrange);
+                
+                if (state.autoArrange) {
+                    arrangeNodes();
+                }
+            }
+            
+            function arrangeNodes() {
+                const rootNodes = state.nodes.filter(node => !node.parentId);
+                
+                if (rootNodes.length === 0) return;
+                
+                // Start with the first root node (we'll assume there's only one central node)
+                const rootNode = rootNodes[0];
+                
+                if (state.horizontalLayout) {
+                    // Horizontal arrangement
+                    arrangeHorizontal(rootNode, rootNode.x, rootNode.y);
+                } else {
+                    // Vertical arrangement
+                    arrangeVertical(rootNode, rootNode.x, rootNode.y);
+                }
+                
+                updateConnections();
+            }
+            
+            function arrangeHorizontal(node, x, y, level = 0) {
+                // Position the node
+                node.x = x;
+                node.y = y;
+                node.element.style.left = `${x}px`;
+                node.element.style.top = `${y}px`;
+                
+                if (node.children.length === 0) return { minY: y, maxY: y };
+                
+                // Calculate total height needed for children
+                let totalHeight = 0;
+                const childrenHeights = node.children.map(child => {
+                    const childHeight = getSubtreeHeight(child, true) * 80;
+                    totalHeight += childHeight;
+                    return childHeight;
+                });
+                
+                // Adjust for spacing between branches
+                totalHeight += (node.children.length - 1) * 40;
+                
+                let currentY = y - totalHeight / 2 + childrenHeights[0] / 2;
+                let minY = y;
+                let maxY = y;
+                
+                // Position each child
+                node.children.forEach((child, index) => {
+                    const childHeight = childrenHeights[index];
+                    const childX = node.x + node.width + 80 + (level * 20);
+                    
+                    child.x = childX;
+                    child.y = currentY + childHeight / 2 - getSubtreeHeight(child, true) * 40;
+                    child.element.style.left = `${child.x}px`;
+                    child.element.style.top = `${child.y}px`;
+                    
+                    // Arrange grandchildren
+                    const subtreeBounds = arrangeHorizontal(child, child.x, child.y, level + 1);
+                    
+                    minY = Math.min(minY, subtreeBounds.minY);
+                    maxY = Math.max(maxY, subtreeBounds.maxY);
+                    
+                    currentY += childHeight + 40;
+                });
+                
+                return { minY, maxY };
+            }
+            
+            function arrangeVertical(node, x, y, level = 0) {
+                // Position the node
+                node.x = x;
+                node.y = y;
+                node.element.style.left = `${x}px`;
+                node.element.style.top = `${y}px`;
+                
+                if (node.children.length === 0) return { minX: x, maxX: x };
+                
+                // Calculate total width needed for children
+                let totalWidth = 0;
+                const childrenWidths = node.children.map(child => {
+                    const childWidth = getSubtreeWidth(child, true) * 100;
+                    totalWidth += childWidth;
+                    return childWidth;
+                });
+                
+                // Adjust for spacing between branches
+                totalWidth += (node.children.length - 1) * 60;
+                
+                let currentX = x - totalWidth / 2 + childrenWidths[0] / 2;
+                let minX = x;
+                let maxX = x;
+                
+                // Position each child
+                node.children.forEach((child, index) => {
+                    const childWidth = childrenWidths[index];
+                    const childY = node.y + node.height + 80 + (level * 20);
+                    
+                    child.x = currentX + childWidth / 2 - getSubtreeWidth(child, true) * 50;
+                    child.y = childY;
+                    child.element.style.left = `${child.x}px`;
+                    child.element.style.top = `${child.y}px`;
+                    
+                    // Arrange grandchildren
+                    const subtreeBounds = arrangeVertical(child, child.x, child.y, level + 1);
+                    
+                    minX = Math.min(minX, subtreeBounds.minX);
+                    maxX = Math.max(maxX, subtreeBounds.maxX);
+                    
+                    currentX += childWidth + 60;
+                });
+                
+                return { minX, maxX };
+            }
+            
+            function getSubtreeHeight(node, horizontal) {
+                if (node.children.length === 0) return 1;
+                
+                if (horizontal) {
+                    return node.children.reduce((sum, child) => {
+                        return sum + getSubtreeHeight(child, horizontal);
+                    }, 0);
+                } else {
+                    return 1 + Math.max(...node.children.map(child => getSubtreeHeight(child, horizontal)));
+                }
+            }
+            
+            function getSubtreeWidth(node, horizontal) {
+                if (node.children.length === 0) return 1;
+                
+                if (horizontal) {
+                    return 1 + Math.max(...node.children.map(child => getSubtreeWidth(child, horizontal)));
+                } else {
+                    return node.children.reduce((sum, child) => {
+                        return sum + getSubtreeWidth(child, horizontal);
+                    }, 0);
+                }
+            }
+            
+            function toggleColorPalette() {
+                if (colorPalette.style.display === 'block') {
+                    colorPalette.style.display = 'none';
+                } else {
+                    colorPalette.style.display = 'block';
+                }
+            }
+            
+            function centerView() {
+                if (state.nodes.length > 0) {
+                    const firstNode = state.nodes[0];
+                    const centerX = window.innerWidth / 2;
+                    const centerY = window.innerHeight / 2;
+                    
+                    state.offsetX = centerX - (firstNode.x + firstNode.width/2) * state.scale;
+                    state.offsetY = centerY - (firstNode.y + firstNode.height/2) * state.scale;
+                    
+                    updateCanvasTransform();
+                }
+            }
+            
+            function zoom(factor, centerX = window.innerWidth / 2, centerY = window.innerHeight / 2) {
+                const newScale = Math.max(state.minScale, Math.min(state.maxScale, state.scale * factor));
+                
+                // Calculate new offset to zoom toward center
+                const scaleChange = newScale / state.scale;
+                state.offsetX = centerX - (centerX - state.offsetX) * scaleChange;
+                state.offsetY = centerY - (centerY - state.offsetY) * scaleChange;
+                
+                state.scale = newScale;
+                updateCanvasTransform();
+            }
+            
+            function resetZoom() {
+                state.scale = 1;
+                state.offsetX = 0;
+                state.offsetY = 0;
+                updateCanvasTransform();
+            }
+            
+            function updateCanvasTransform() {
+                canvas.style.transform = `translate(${state.offsetX}px, ${state.offsetY}px) scale(${state.scale})`;
+                updateConnections();
+            }
+            
+            function setupCanvasEvents() {
+                // Mouse/touch events for panning
+                canvasContainer.addEventListener('mousedown', startPan);
+                canvasContainer.addEventListener('touchstart', startPan, { passive: false });
+                
+                document.addEventListener('mousemove', handlePan);
+                document.addEventListener('touchmove', handlePan, { passive: false });
+                
+                document.addEventListener('mouseup', endPan);
+                document.addEventListener('touchend', endPan);
+                
+                // Click on canvas to deselect
+                canvasContainer.addEventListener('click', (e) => {
+                    if (e.target === canvasContainer && state.selectedNode) {
+                        state.selectedNode.element.classList.remove('selected');
+                        const textarea = state.selectedNode.element.querySelector('.node-input');
+                        textarea.classList.remove('editing');
+                        state.selectedNode = null;
+                        colorPalette.style.display = 'none';
+                    }
+                });
+                
+                // Handle pinch zoom
+                canvasContainer.addEventListener('touchstart', handleTouchStart, { passive: false });
+                canvasContainer.addEventListener('touchmove', handleTouchMove, { passive: false });
+                canvasContainer.addEventListener('touchend', handleTouchEnd);
+            }
+            
+            function handleTouchStart(e) {
+                if (e.touches.length === 2) {
+                    e.preventDefault();
+                    state.initialPinchDistance = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+                    state.initialScale = state.scale;
+                    
+                    // Calculate center point between fingers
+                    const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                    const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                    state.pinchCenter = { x: centerX, y: centerY };
+                } else if (e.touches.length === 1 && !state.isDragging) {
+                    const touch = e.touches[0];
+                    const target = document.elementFromPoint(touch.clientX, touch.clientY);
+                    
+                    if (target && target.classList.contains('node')) {
+                        const nodeId = parseInt(target.dataset.id);
+                        const node = state.nodes.find(n => n.id === nodeId);
+                        if (node) {
+                            startNodeDrag(node, touch.clientX, touch.clientY);
+                        }
+                    }
+                }
+            }
+            
+            function handleTouchMove(e) {
+                if (e.touches.length === 2 && state.initialPinchDistance) {
+                    e.preventDefault();
+                    const currentDistance = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+                    const scaleFactor = currentDistance / state.initialPinchDistance;
+                    const newScale = Math.max(state.minScale, Math.min(state.maxScale, state.initialScale * scaleFactor));
+                    
+                    // Zoom toward center between fingers
+                    const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                    const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                    
+                    const scaleChange = newScale / state.scale;
+                    state.offsetX = centerX - (centerX - state.offsetX) * scaleChange;
+                    state.offsetY = centerY - (centerY - state.offsetY) * scaleChange;
+                    
+                    state.scale = newScale;
+                    updateCanvasTransform();
+                } else if (state.isDragging && e.touches.length === 1) {
+                    const touch = e.touches[0];
+                    handlePan({ touches: [touch] });
+                    e.preventDefault();
+                } else if (state.isPanning) {
+                    handlePan(e);
+                }
+            }
+            
+            function handleTouchEnd() {
+                state.initialPinchDistance = null;
+                endPan();
+            }
+            
+            function handleNodeMouseDown(e) {
+                e.stopPropagation();
+                const nodeId = parseInt(this.dataset.id);
+                const node = state.nodes.find(n => n.id === nodeId);
+                
+                if (!node) return;
+                
+                const currentTime = new Date().getTime();
+                const isDoubleClick = (currentTime - state.lastClickTime) < 300;
+                state.lastClickTime = currentTime;
+                
+                if (isDoubleClick) {
+                    editNode(node);
+                    return;
+                }
+                
+                startNodeDrag(node, e.clientX, e.clientY);
+                e.preventDefault();
+            }
+            
+            function handleNodeTouchStart(e) {
+                e.stopPropagation();
+                const nodeId = parseInt(this.dataset.id);
+                const node = state.nodes.find(n => n.id === nodeId);
+                
+                if (!node) return;
+                
+                const touch = e.touches[0];
+                const currentTime = new Date().getTime();
+                const isDoubleTap = (currentTime - state.lastClickTime) < 300;
+                state.lastClickTime = currentTime;
+                
+                if (isDoubleTap) {
+                    editNode(node);
+                    e.preventDefault();
+                    return;
+                }
+                
+                startNodeDrag(node, touch.clientX, touch.clientY);
+                e.preventDefault();
+            }
+            
+            function startNodeDrag(node, clientX, clientY) {
+                selectNode(node);
+                state.isDragging = true;
+                state.dragNode = node;
+                
+                // Store initial positions
+                state.dragStartPos = {
+                    x: node.x,
+                    y: node.y,
+                    clientX: clientX,
+                    clientY: clientY
+                };
+                
+                node.element.classList.add('dragging');
+                
+                // Highlight potential parents
+                state.nodes.forEach(n => {
+                    if (n.id !== node.id) {
+                        n.element.classList.add('highlight');
+                    }
+                });
+            }
+            
+            function startPan(e) {
+                if ((e.target === canvasContainer || e.target.classList.contains('connector')) && !state.isDragging) {
+                    state.isPanning = true;
+                    
+                    const clientX = e.clientX || e.touches[0].clientX;
+                    const clientY = e.clientY || e.touches[0].clientY;
+                    
+                    state.touchStart = {
+                        x: clientX - state.offsetX,
+                        y: clientY - state.offsetY
+                    };
+                    
+                    canvas.style.cursor = 'grabbing';
+                    e.preventDefault();
+                }
+            }
+            
+            function handlePan(e) {
+                if (state.isDragging && state.dragNode) {
+                    const clientX = e.clientX || e.touches[0].clientX;
+                    const clientY = e.clientY || e.touches[0].clientY;
+                    
+                    // Calculate new position
+                    const dx = (clientX - state.dragStartPos.clientX) / state.scale;
+                    const dy = (clientY - state.dragStartPos.clientY) / state.scale;
+                    
+                    state.dragNode.x = state.dragStartPos.x + dx;
+                    state.dragNode.y = state.dragStartPos.y + dy;
+                    
+                    state.dragNode.element.style.left = `${state.dragNode.x}px`;
+                    state.dragNode.element.style.top = `${state.dragNode.y}px`;
+                    
+                    // Check for potential parent
+                    checkForPotentialParent(state.dragNode, clientX, clientY);
+                    
+                    updateConnections();
+                    e.preventDefault();
+                }
+                
+                if (state.isPanning) {
+                    const clientX = e.clientX || e.touches[0].clientX;
+                    const clientY = e.clientY || e.touches[0].clientY;
+                    
+                    state.offsetX = clientX - state.touchStart.x;
+                    state.offsetY = clientY - state.touchStart.y;
+                    
+                    updateCanvasTransform();
+                    e.preventDefault();
+                }
+            }
+            
+            function checkForPotentialParent(draggedNode, clientX, clientY) {
+                // Convert client coordinates to canvas coordinates
+                const canvasX = (clientX - state.offsetX) / state.scale;
+                const canvasY = (clientY - state.offsetY) / state.scale;
+                
+                // Reset previous potential parent
+                if (state.potentialParent) {
+                    state.potentialParent.element.classList.remove('highlight');
+                    state.potentialParent = null;
+                }
+                
+                // Find node under cursor (excluding dragged node)
+                const potentialParent = state.nodes.find(node => {
+                    if (node.id === draggedNode.id || node.id === draggedNode.parentId) return false;
+                    
+                    return canvasX >= node.x && 
+                           canvasX <= node.x + node.width &&
+                           canvasY >= node.y && 
+                           canvasY <= node.y + node.height;
+                });
+                
+                if (potentialParent) {
+                    potentialParent.element.classList.add('highlight');
+                    state.potentialParent = potentialParent;
+                }
+            }
+            
+            function endPan() {
+                if (state.isDragging && state.dragNode) {
+                    // Check if we need to reparent the node
+                    if (state.potentialParent) {
+                        // Remove from old parent's children
+                        if (state.dragNode.parentId) {
+                            const oldParent = state.nodes.find(n => n.id === state.dragNode.parentId);
+                            if (oldParent) {
+                                oldParent.children = oldParent.children.filter(child => child.id !== state.dragNode.id);
+                            }
+                        }
+                        
+                        // Change parent
+                        state.dragNode.parentId = state.potentialParent.id;
+                        state.dragNode.originalParentId = state.potentialParent.id;
+                        createConnection(state.potentialParent.id, state.dragNode.id);
+                        
+                        // Add to new parent's children
+                        state.potentialParent.children.push(state.dragNode);
+                        
+                        if (state.autoArrange) {
+                            arrangeNodes();
+                        } else {
+                            // Position the node relative to its new parent
+                            if (state.horizontalLayout) {
+                                state.dragNode.x = state.potentialParent.x + state.potentialParent.width + 60;
+                                state.dragNode.y = state.potentialParent.y;
+                            } else {
+                                state.dragNode.x = state.potentialParent.x;
+                                state.dragNode.y = state.potentialParent.y + state.potentialParent.height + 60;
+                            }
+                            
+                            state.dragNode.element.style.left = `${state.dragNode.x}px`;
+                            state.dragNode.element.style.top = `${state.dragNode.y}px`;
+                        }
+                        
+                        state.potentialParent.element.classList.remove('highlight');
+                        state.potentialParent = null;
+                    }
+                    
+                    // Remove dragging class and reset state
+                    state.dragNode.element.classList.remove('dragging');
+                    state.nodes.forEach(n => n.element.classList.remove('highlight'));
+                    
+                    state.isDragging = false;
+                    state.dragNode = null;
+                }
+                
+                if (state.isPanning) {
+                    state.isPanning = false;
+                    canvas.style.cursor = 'grab';
+                }
+            }
+        });
+    </script>
+</body>
+</html>
